@@ -254,7 +254,7 @@ elements of a def* forms."
       (,(concat
          "(\\(?:clojure/\\)?" 
          (regexp-opt
-          '("cond" "for" "loop" "let" "recur" "do" "binding" "with-meta"
+          '("cond" "condp" "for" "loop" "let" "recur" "do" "binding" "with-meta"
             "when" "when-not" "when-let" "when-first" "if" "if-let"
             "delay" "lazy-cons" "." ".." "->" "and" "or" "locking"
             "dosync" "load"
@@ -451,6 +451,8 @@ check for contextual indenting."
   (ns 1)
   (binding 1)
   (comment 0)
+  (cond 1)
+  (condp 1)
   (defstruct 1)
   (doseq 1)
   (dotimes 1)
