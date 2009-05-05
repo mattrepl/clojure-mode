@@ -37,6 +37,8 @@
 
 ;; The clojure-install function can check out and configure all the
 ;; dependencies get going with Clojure, including SLIME integration.
+;; To use this function, you may have to manually load clojure-mode.el
+;; using M-x load-file or M-x eval-buffer.
 
 ;;; Todo:
 
@@ -143,7 +145,6 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
     (modify-syntax-entry ?\[ "(]" table)
     (modify-syntax-entry ?\] ")[" table)
     (modify-syntax-entry ?^ "'" table)
-    (modify-syntax-entry ?= "'" table)
     table))
 
 
@@ -192,25 +193,27 @@ if that value is non-nil."
                clojure-mode-font-lock-comment-sexp))
       (message "Clojure mode font lock extras are unavailable, please upgrade to atleast version 22 ")
     
-   (when clojure-mode-font-lock-multiline-def
-     (add-to-list 'font-lock-extend-region-functions 'clojure-font-lock-extend-region-def t))
-   
-   (when clojure-mode-font-lock-comment-sexp
-     (add-to-list 'font-lock-extend-region-functions 'clojure-font-lock-extend-region-comment t)
-     (make-local-variable 'clojure-font-lock-keywords)
-     (add-to-list 'clojure-font-lock-keywords  'clojure-font-lock-mark-comment t)
-     (set (make-local-variable 'open-paren-in-column-0-is-defun-start) nil)))
+    (when clojure-mode-font-lock-multiline-def
+      (add-to-list 'font-lock-extend-region-functions 'clojure-font-lock-extend-region-def t))
+    
+    (when clojure-mode-font-lock-comment-sexp
+      (add-to-list 'font-lock-extend-region-functions 'clojure-font-lock-extend-region-comment t)
+      (make-local-variable 'clojure-font-lock-keywords)
+      (add-to-list 'clojure-font-lock-keywords  'clojure-font-lock-mark-comment t)
+      (set (make-local-variable 'open-paren-in-column-0-is-defun-start) nil)))
 
   (setq font-lock-defaults
-	'(clojure-font-lock-keywords    ; keywords
-	  nil nil
+        '(clojure-font-lock-keywords    ; keywords
+          nil nil
           (("+-*/.<>=!?$%_&~^:@" . "w")) ; syntax alist
           nil
-	  (font-lock-mark-block-function . mark-defun)
-	  (font-lock-syntactic-face-function . lisp-font-lock-syntactic-face-function)))
-  
-  (run-mode-hooks 'clojure-mode-hook)
-  
+          (font-lock-mark-block-function . mark-defun)
+          (font-lock-syntactic-face-function . lisp-font-lock-syntactic-face-function)))
+
+  (if (fboundp 'run-mode-hooks) 
+      (run-mode-hooks 'clojure-mode-hook)
+    (run-hooks 'clojure-mode-hook))
+
   ;; Enable curly braces when paredit is enabled in clojure-mode-hook
   (when (and (featurep 'paredit) paredit-mode (>= paredit-version 21))
     (define-key clojure-mode-map "{" 'paredit-open-curly)
@@ -298,7 +301,7 @@ elements of a def* forms."
     `( ;; Definitions.
       (,(concat "(\\(?:clojure/\\)?\\(def"
 		;; Function declarations.
-		"\\(n-?\\|multi\\|macro\\|method\\|"
+		"\\(n-?\\|multi\\|macro\\|method\\|test\\|"
 		;; Variable declarations.
                 "struct\\|once\\|"
 		"\\)\\)\\>"
@@ -314,7 +317,7 @@ elements of a def* forms."
       (,(concat
          "(\\(?:clojure/\\)?" 
          (regexp-opt
-          '("let" "do"
+          '("let" "letfn" "do"
             "cond" "condp"
             "for" "loop" "recur"
             "when" "when-not" "when-let" "when-first"
@@ -525,12 +528,15 @@ check for contextual indenting."
   (catch 2)
   (defmuti 1)
   (do 0)
-  (for 1)    ; FIXME (for seqs expr) and (for seqs filter expr)
+  (for 1)
   (if 1)
+  (if-not 1)
   (let 1)
+  (letfn 1)
   (loop 1)
   (struct-map 1)
   (assoc 1)
+  (condp 2)
 
   (fn 'defun))
 
@@ -635,7 +641,7 @@ should be checked out in the `clojure-src-root' directory."
 
   (message "Updating...")
   (dolist (repo '("clojure" "clojure-contrib" "swank-clojure" "slime"))
-    (unless (= 0 (shell-command (format "cd %s/%s; git pull" clojure-src-root repo)))
+    (unless (= 0 (shell-command (format "cd %s/%s; git pull origin master" clojure-src-root repo)))
       (error "Clojure update failed: %s" repo)))
 
   (message "Compiling...")
@@ -643,6 +649,16 @@ should be checked out in the `clojure-src-root' directory."
     (unless (= 0 (shell-command (format "cd %s/clojure; ant" clojure-src-root)))
       (error "Couldn't compile Clojure.")))
   (message "Finished updating Clojure."))
+
+(defun clojure-enable-slime-on-existing-buffers ()
+  (interactive)
+  (dolist (buffer (buffer-list))
+    (if (equal '(major-mode . clojure-mode)
+               (assoc 'major-mode (buffer-local-variables buffer)))
+        (with-current-buffer buffer
+          (slime-mode t)))))
+
+(add-hook 'slime-connected-hook 'clojure-enable-slime-on-existing-buffers)
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.clj$" . clojure-mode))
