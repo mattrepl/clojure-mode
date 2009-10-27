@@ -18,9 +18,9 @@
 
 ;;; Installation:
 
-;; If you use ELPA, you can install via the M-x package-list-packages
-;; interface. This is preferrable as you will have access to updates
-;; automatically.
+;; If you use ELPA (http://tromey.com/elpa), you can install via the
+;; M-x package-list-packages interface. This is preferrable as you
+;; will have access to updates automatically.
 
 ;; If you need to install by hand for some reason:
 
@@ -140,6 +140,8 @@ if that value is non-nil."
        "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|#|\\) *")
   (set (make-local-variable 'lisp-indent-function)
        'clojure-indent-function)
+  (set (make-local-variable 'lisp-doc-string-elt-property)
+	   'clojure-doc-string-elt)
   (set (make-local-variable 'font-lock-multiline) t)
 
   (setq lisp-imenu-generic-expression
@@ -331,6 +333,12 @@ elements of a def* forms."
       ("\\<io\\!\\>" 0 font-lock-warning-face)))
   "Default expressions to highlight in Clojure mode.")
 
+;; Docstring positions
+(put 'defn 'clojure-doc-string-elt 2)
+(put 'defn- 'clojure-doc-string-elt 2)
+(put 'defmulti 'clojure-doc-string-elt 2)
+(put 'defmacro 'clojure-doc-string-elt 2)
+
 (defun clojure-indent-function (indent-point state)
   "This function is the normal value of the variable `lisp-indent-function'.
 It is used when indenting a line within a function call, to see if the
@@ -473,7 +481,8 @@ check for contextual indenting."
   (assoc 1)
   (condp 2)
 
-  (fn 'defun))
+  (fn 'defun)
+  (testing 1))
 
 ;; built-ins
 (define-clojure-indent
@@ -535,7 +544,14 @@ is bundled up as a function so that you can call it after you've set
     (setq swank-clojure-classpath
           (list
            (concat clojure-src-root "/clojure/clojure.jar")
-           (concat clojure-src-root "/clojure-contrib/clojure-contrib.jar")))))
+           (concat clojure-src-root "/clojure-contrib/clojure-contrib.jar")))
+    (eval-after-load 'slime
+      '(progn (require 'swank-clojure)
+              (setq slime-lisp-implementations
+                    (cons `(clojure ,(swank-clojure-cmd) :init
+                                    swank-clojure-init)
+                          (remove-if #'(lambda (x) (eq (car x) 'clojure))
+                                     slime-lisp-implementations)))))))
 
 ;;;###autoload
 (defun clojure-install (src-root)
