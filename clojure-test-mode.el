@@ -4,9 +4,9 @@
 
 ;; Author: Phil Hagelberg <technomancy@gmail.com>
 ;; URL: http://emacswiki.org/cgi-bin/wiki/ClojureTestMode
-;; Version: 1.2
+;; Version: 1.3
 ;; Keywords: languages, lisp
-;; Package-Requires: ((clojure-mode "1.1"))
+;; Package-Requires: ((swank-clojure "1.0"))
 
 ;; This file is not part of GNU Emacs.
 
@@ -32,11 +32,6 @@
 ;;      (add-hook 'clojure-mode-hook 'clojure-test-maybe-enable)
 ;;
 ;;     Or generate autoloads with the `update-directory-autoloads' function.
-
-;; This depends on swank-clojure to work properly. Unfortunately since
-;; SLIME is a complex dependency, it hasn't been packaged in ELPA
-;; yet. To get it configured and installed, use M-x clojure-install
-;; from clojure-mode.
 
 ;; This library does not currently support clojure.contrib.test-is
 ;; from Clojure Contrib's 1.0-compatibility branch. If you need it,
@@ -74,14 +69,13 @@
 ;; 1.2: 2009-05-19
 ;;  * Add clojure-test-jump-to-(test|implementation).
 
-;; 1.3: ???
+;; 1.3: 2009-11-10
 ;;  * Update to use clojure.test instead of clojure.contrib.test-is.
 ;;  * Fix bug suppressing test report output in repl.
 
 ;;; TODO:
 
 ;; * Implement next-problem command
-;; * Errors *loading* the tests are not reported
 ;; * Error messages need line number.
 ;; * Currently show-message needs point to be on the line with the
 ;;   "is" invocation; this could be cleaned up.
@@ -92,6 +86,7 @@
 (require 'cl)
 (require 'slime)
 (require 'swank-clojure)
+(require 'which-func)
 
 ;; Faces
 
@@ -159,7 +154,7 @@
 (defun clojure-test-extract-results (results)
   (let ((result-vars (read (cadr results))))
     ;; slime-eval-async hands us a cons with a useless car
-    (mapcar #'clojure-test-extract-result result-vars)
+    (mapc #'clojure-test-extract-result result-vars)
     (message "Ran %s tests. %s failures, %s errors."
              clojure-test-count
              clojure-test-failure-count clojure-test-error-count)))
@@ -220,6 +215,24 @@
                                               "(clojure.test/run-tests)")
                                             #'clojure-test-get-results))))))
 
+(defun clojure-test-run-test ()
+  "Run the test at point."
+  (interactive)
+  (save-some-buffers nil (lambda () (equal major-mode 'clojure-mode)))
+  (clojure-test-clear
+   (lambda (&rest args)
+     (let ((test-name (first (which-function))))
+       (slime-eval-async
+        `(swank:interactive-eval
+          ,(format "(do (load-file \"%s\")
+                      (when (:test ^#'%s) (%s) (cons nil (:status ^#'%s))))"
+                   (buffer-file-name) test-name test-name test-name))
+        (lambda (result-str)
+          (let ((result (read result-str)))
+            (if (cdr result)
+                (clojure-test-extract-result result)
+              (message "Not in a test.")))))))))
+
 (defun clojure-test-show-result ()
   "Show the result of the test under point."
   (interactive)
@@ -259,6 +272,8 @@
 (defvar clojure-test-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-,") 'clojure-test-run-tests)
+    (define-key map (kbd "C-c ,")   'clojure-test-run-tests)
+    (define-key map (kbd "C-c M-,") 'clojure-test-run-test)
     (define-key map (kbd "C-c C-'") 'clojure-test-show-result)
     (define-key map (kbd "C-c '")   'clojure-test-show-result)
     (define-key map (kbd "C-c k")   'clojure-test-clear)
